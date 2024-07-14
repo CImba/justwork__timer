@@ -1,11 +1,8 @@
 <template>
   <div class="list">
-    <div class="list__sector" v-for="(el, idx) in list" :key="idx">
-      <p class="list__date">{{ el.date }}</p>
-      <p class="list__item" v-for="item in el.list" :key="item.id">
-        {{ item.id }}. {{ item.dateStart }} - {{ item.dateEnd }}, works time - {{ item.size }}
-      </p>
-    </div>
+    <p class="list__item" v-for="item in timersList" :key="item.id">
+      {{ item.id }}. {{ formatDate(item.dateStart) }} - {{ formatDate(item.dateEnd) }}, works time - {{ formatTime(item.size) }}
+    </p>
   </div>
 </template>
 
@@ -13,25 +10,39 @@
 export default {
   name: "TimerList",
   props: {
-    isActiveTimer: Boolean,
-    activeTimer: Object
+    timersList: Array
   },
 
   data() {
     return {
-      list: [
-        {date: '12-07-2024', list: [
-          { id: 1, dateStart: '12-07-2024 16:30', dateEnd: '12-07-2024 16:30', size: '00:00:10' },
-          { id: 2, dateStart: '12-07-2024 16:30', dateEnd: '12-07-2024 16:30', size: '00:00:40' },
-        ]},
-        {date: '13-07-2024', list: [
-          { id: 3, dateStart: '13-07-2024 16:30', dateEnd: '13-07-2024 16:30', size: '00:00:10' },
-          { id: 4, dateStart: '13-07-2024 17:30', dateEnd: '13-07-2024 17:30', size: '00:00:20' },
-          { id: 5, dateStart: '13-07-2024 17:30', dateEnd: '13-07-2024 17:40', size: '00:06:10' },
-        ]}
-      ]
     }
   },
+  computed: {
+    uniqDate() {
+      let list = [];
+      this.timersList.forEach(el => {
+        if (!(list.includes(this.formatDate(el.dateStart))))
+          list.push(el.dateStart)
+      });
+      return list;
+    }
+  },
+  methods: {
+    onTest() {},
+    formatDate(date) {
+      date = new Date(date);
+      return `${this.onAddZero(date.getDate())}-${this.onAddZero(date.getMonth())}-${date.getFullYear()}`;
+    },
+    formatTime(time) {
+      let ours = Number(Math.trunc(time/(60*60)));
+      let minutes = Number(Math.trunc((time - ours*60*60)/60));
+      let seconds = Number(time - ours*60*60 - minutes*60);
+      return `${this.onAddZero(ours)}:${this.onAddZero(minutes)}:${this.onAddZero(seconds)}`
+    },
+    onAddZero(val) {
+      return val < 10 ? `0${val}` : val;
+    }
+  }
 }
 </script>
 

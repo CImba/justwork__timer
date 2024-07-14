@@ -1,9 +1,27 @@
 <template>
   <div class="timerControlBlock">
-    <div class="timer" v-if="isActiveTimer">{{ formatTimer(currentTimer) }}</div>
-    <button v-for="(el, idx) in controlsElements" :key="idx" @click="onActionTimer(el.action)">{{ el.name }}</button>
-    <p v-if="isActiveTimer"> {{ activeTimer.description }}</p>
-    <input v-else type="textarea" v-model="newTimer.description">
+    <p v-if="status !== stop" style="text-align: left">New timer</p>
+    <div class="timer" v-if="status !== 'stop'">{{ formatTimer(currentTimer) }}</div>
+    <button
+        v-for="(el, idx) in controlsElements"
+        :key="idx"
+        @click="onActionTimer(el.name)"
+        :disabled="el.disable"
+    >
+      {{ el.name }}
+    </button>
+    <div v-if="status === 'stop'" class="setting">
+      <input v-model="myTimerOurs" value="123" class="time" type="number" min="0" />
+      <span>:</span>
+      <input v-model="myTimerMinutes" class="time" type="number" min="0" max="59" />
+      <span>:</span>
+      <input v-model="myTimerSeconds" class="time" type="number" min="0" max="59" />
+      <span class="longSpace"> - </span>
+      <input v-model="myTimerControl" type="number" min="0" />
+      <p class="hint">HH:mm:ss - time in seconds</p>
+    </div>
+    <p v-if="status !== 'stop'"> {{ activeTimer.description }}</p>
+    <textarea v-else v-model="newTimer.description" class="desc" placeholder="Description"></textarea>
   </div>
 </template>
 
@@ -11,7 +29,6 @@
 export default {
   name: "TimerControl",
   props: {
-    isActiveTimer: Boolean,
     activeTimer: Object
   },
   emits: {
@@ -23,51 +40,112 @@ export default {
   data() {
     return {
       controlsElements: [
-        { name: 'play', icon: 'play_circle', action: 'onPlayTimer' },
-        { name: 'stop', icon: '', action: 'onStopTimer' },
-        { name: 'pause', icon: '', action: 'onPauseTimer' }
+        { name: 'play', icon: '', disable: false },
+        { name: 'stop', icon: '', disable: false },
+        { name: 'pause', icon: '', disable: false }
       ],
       newTimer: {
         status: '',
         dateStart: '',
         dateEnd: '',
         plannedTime: 60*60,
-        currentTime: 60*60,
-        description: ''
+        description: '',
+        size: 0
       },
       currentTimer: {
         ours: 0,
         minutes: 0,
         seconds: 0,
         controlTime: 0
-      }
+      },
+      myTimerOurs: 0,
+      myTimerMinutes: 0,
+      myTimerSeconds: 0,
+      myTimerControl: 0,
     }
   },
   computed: {
+    status() {
+      return this.activeTimer.status;
+    },
   },
-  created() {
-    console.log('created');
-    console.log(this.activeTimer);
-    const timer = this.isActiveTimer ? this.activeTimer : this.newTimer;
-    const ours = Math.trunc(timer.currentTime / (60*60));
-    const minutes = Math.trunc((timer.currentTime - ours) / 60);
-    const second = timer.currentTime - ours*60*60 - minutes*60;
-    this.currentTimer = {
-      ours: ours,
-      minutes: minutes,
-      seconds: second,
-      controlTime: timer.currentTime
-    };
-    if (this.isActiveTimer)
-      setTimeout(this.onTimerStep, 1000);
+  watch: {
+    status(val) {
+      if (val === 'play') {
+        this.controlsElements[0].disable = true;
+        this.controlsElements[1].disable = false;
+        this.controlsElements[2].disable = false;
+        let tmp = new Date(this.activeTimer.dateStart);
+        if (this.activeTimer.dateEnd !== '')
+          tmp = new Date(this.activeTimer.dateEnd);
+        let tmp2 = new Date();
+        let time = (tmp.getTime() + this.activeTimer.plannedTime*1000) - tmp2.getTime();
+        if (time > 0) {
+          this.currentTimer = this.onSetTimeByControl(Math.trunc(time/1000));
+          setTimeout(this.onTimerStep, 1000);
+        } else {
+          this.newTimer = { ... this.activeTimer };
+          this.newTimer.dateEnd = tmp.getTime() + this.activeTimer.plannedTime*1000;
+          this.newTimer.size += this.activeTimer.plannedTime;
+          this.$emit('stop-timer', this.newTimer);
+        }
+      } else if (val === 'stop') {
+        this.controlsElements[0].disable = false;
+        this.controlsElements[1].disable = true;
+        this.controlsElements[2].disable = true;
+      } else {
+        this.controlsElements[0].disable = true;
+        this.controlsElements[1].disable = true;
+        this.controlsElements[2].disable = false;
+      }
+    },
+    myTimerOurs(val) {
+      val = this.onCheckTimeVal(val, 'long');
+      this.myTimerOurs = val;
+      this.myTimerControl = this.myTimerOurs*60*60 + this.myTimerMinutes*60 + this.myTimerSeconds;
+    },
+    myTimerMinutes(val) {
+      val = this.onCheckTimeVal(val, 'short');
+      this.myTimerMinutes = val;
+      this.myTimerControl = this.myTimerOurs*60*60 + this.myTimerMinutes*60 + this.myTimerSeconds;
+    },
+    myTimerSeconds(val) {
+      val = this.onCheckTimeVal(val, 'short');
+      this.myTimerSeconds = val;
+      this.myTimerControl = this.myTimerOurs*60*60 + this.myTimerMinutes*60 + this.myTimerSeconds;
+    },
+    myTimerControl(val) {
+      const tmpVal = this.myTimerOurs*60*60 + this.myTimerMinutes*60 + this.myTimerSeconds;
+      if (val !== tmpVal) {
+        val = this.onCheckTimeVal(val, 'long');
+        this.myTimerControl = val;
+        let tmpTimer = this.onSetTimeByControl(val);
+        this.myTimerOurs = tmpTimer.ours;
+        this.myTimerMinutes = tmpTimer.minutes;
+        this.myTimerSeconds = tmpTimer.seconds;
+      }
+    }
   },
   methods: {
     /**
-     * Вывод красивого тайме
-     * @param time Объект с выводимым временем
+     * Проверка и обрезание значения времени
+     * @param val Значение
+     * @param type short - не больше 60, long - не ограничен по длине
+     * @returns {number|number|number} Положительное значение (<= 60, если было указано)
+     */
+    onCheckTimeVal(val = 0, type = 'short') {
+      val = Number(val);
+      val = val < 0 ? -1*val : val;
+      if (type === 'long')
+        return val;
+      return val < 60 ? val : 59;
+    },
+    /**
+     * Форматирование времени
+     * @param time Объект времени (часы, минуты. секунды, общее в секундах)
+     * @returns {string} Строка в формате hh:mm:ss
      */
     formatTimer(time = this.currentTimer) {
-      // return h:mm:ss
       let answer = '';
       answer += time.ours > 0 ? time.ours + ':' : '';
       answer += time.minutes < 10 ? '0' : '';
@@ -95,33 +173,41 @@ export default {
           this.currentTimer.seconds--;
         }
       } else {
-        // stop
-        console.log('timer stop');
+        this.$emit('stop-timer');
       }
     },
-    /**
-     * Управление таймером
-     * @param action действие
-     */
     onActionTimer(action = '') {
       switch (action) {
-        case 'onPlayTimer':
-          console.log('play');
+        case 'play':
+          this.newTimer.plannedTime = this.myTimerControl > 0 ? this.myTimerControl : 60*60;
+          this.newTimer.status = 'play';
+          this.newTimer.dateStart = new Date();
+          this.$emit('start-timer', this.newTimer);
           break;
 
-        case 'onPauseTimer':
-          console.log('pause');
+        case 'pause':
           this.$emit('pause-timer');
           break;
 
-        case 'onStopTimer':
-          console.log('stop');
+        case 'stop':
+          this.$emit('stop-timer');
           break;
 
           default:
-            console.log('default!!!!');
+            console.error('some new controls');
             break;
       }
+    },
+    onSetTimeByControl(time = 0) {
+      const ours = Number(Math.trunc(time / (60 * 60)));
+      const minutes = Number(Math.trunc((time - ours*60*60) / 60));
+      const second = Number(time - ours * 60 * 60 - minutes * 60);
+      return {
+        ours: ours,
+        minutes: minutes,
+        seconds: second,
+        controlTime: time
+      };
     }
   }
 }
@@ -144,12 +230,44 @@ export default {
     color: #333;
   }
   button:hover, button:focus {
-    background: #efefef;
+    background: #fff;
     cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   .timer {
     font-size: 24px;
     padding: 10px 0;
     margin: 0 0 30px 0;
+  }
+  .desc {
+    width: 100%;
+    min-height: 40px;
+    margin: 10px 0 0 0;
+    border-radius: 6px;
+    border: 1px solid #999;
+    padding: 5px 10px;
+  }
+  .longSpace {
+    display: inline-block;
+    width: 30px;
+    text-align: center;
+  }
+  .time {
+    min-width: 30px;
+  }
+  input {
+    font-size: 14px;
+    padding: 3px 0 3px 5px;
+    box-sizing: border-box;
+  }
+  .hint {
+    margin: 5px 0 10px 0px;
+    font-size: 0.9em;
+  }
+  .setting {
+    margin: 10px 0 0 0;
   }
 </style>
