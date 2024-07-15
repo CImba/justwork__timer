@@ -1,6 +1,6 @@
 <template>
   <div class="timerControlBlock">
-    <p v-if="status !== stop" style="text-align: left">New timer</p>
+    <p v-if="status === 'stop'" style="text-align: left">New timer</p>
     <div class="timer" v-if="status !== 'stop'">{{ formatTimer(currentTimer) }}</div>
     <button
         v-for="(el, idx) in controlsElements"
@@ -41,8 +41,8 @@ export default {
     return {
       controlsElements: [
         { name: 'play', icon: '', disable: false },
-        { name: 'stop', icon: '', disable: false },
-        { name: 'pause', icon: '', disable: false }
+        { name: 'stop', icon: '', disable: true },
+        { name: 'pause', icon: '', disable: true }
       ],
       newTimer: {
         status: '',
@@ -71,33 +71,29 @@ export default {
   },
   watch: {
     status(val) {
-      if (val === 'play') {
-        this.controlsElements[0].disable = true;
-        this.controlsElements[1].disable = false;
-        this.controlsElements[2].disable = false;
-        let tmp = new Date(this.activeTimer.dateStart);
-        if (this.activeTimer.dateEnd !== '')
-          tmp = new Date(this.activeTimer.dateEnd);
-        let tmp2 = new Date();
-        let time = (tmp.getTime() + this.activeTimer.plannedTime*1000) - tmp2.getTime();
-        if (time > 0) {
-          this.currentTimer = this.onSetTimeByControl(Math.trunc(time/1000));
-          setTimeout(this.onTimerStep, 1000);
-        } else {
-          this.newTimer = { ... this.activeTimer };
-          this.newTimer.dateEnd = tmp.getTime() + this.activeTimer.plannedTime*1000;
-          this.newTimer.size += this.activeTimer.plannedTime;
-          this.$emit('stop-timer', this.newTimer);
-        }
-      } else if (val === 'stop') {
-        this.controlsElements[0].disable = false;
-        this.controlsElements[1].disable = true;
-        this.controlsElements[2].disable = true;
-      } else {
-        this.controlsElements[0].disable = true;
-        this.controlsElements[1].disable = true;
-        this.controlsElements[2].disable = false;
-      }
+      this.controlsElements[0].disable = val !== 'stop';
+      this.controlsElements[1].disable = val === 'stop';
+      this.controlsElements[2].disable = val === 'stop';
+      if (val !== 'stop')
+        this.currentTimer = this.onSetTimeByControl(this.activeTimer.plannedTime);
+      if (val === 'play')
+        setTimeout(this.onTimerStep, 1000);
+      // if (val === 'play') {
+      //   this.currentTimer = this.onSetTimeByControl(this.activeTimer.plannedTime);
+      //   setTimeout(this.onTimerStep, 1000);
+      //   this.controlsElements[0].disable = true;
+      //   this.controlsElements[1].disable = false;
+      //   this.controlsElements[2].disable = false;
+      // } else if (val === 'stop') {
+      //   this.controlsElements[0].disable = false;
+      //   this.controlsElements[1].disable = true;
+      //   this.controlsElements[2].disable = true;
+      // } else {
+      //   this.currentTimer = this.onSetTimeByControl(this.activeTimer.plannedTime);
+      //   this.controlsElements[0].disable = true;
+      //   this.controlsElements[1].disable = true;
+      //   this.controlsElements[2].disable = false;
+      // }
     },
     myTimerOurs(val) {
       val = this.onCheckTimeVal(val, 'long');
@@ -173,7 +169,8 @@ export default {
           this.currentTimer.seconds--;
         }
       } else {
-        this.$emit('stop-timer');
+        if (this.currentTimer.controlTime < 1)
+          this.$emit('stop-timer');
       }
     },
     onActionTimer(action = '') {
@@ -193,9 +190,9 @@ export default {
           this.$emit('stop-timer');
           break;
 
-          default:
-            console.error('some new controls');
-            break;
+        default:
+          console.error('some new controls');
+          break;
       }
     },
     onSetTimeByControl(time = 0) {
@@ -220,7 +217,7 @@ export default {
     max-width: 100%;
     padding: 20px 30px;
     border: 1px solid #333;
-    margin: 20px 0 0 0;
+    margin: 20px 0;
   }
   button {
     border: 1px solid #eee;
@@ -249,6 +246,7 @@ export default {
     border-radius: 6px;
     border: 1px solid #999;
     padding: 5px 10px;
+    box-sizing: border-box;
   }
   .longSpace {
     display: inline-block;

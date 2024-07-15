@@ -1,8 +1,11 @@
 <template>
   <div class="list">
-    <p class="list__item" v-for="item in timersList" :key="item.id">
-      {{ item.id }}. {{ formatDate(item.dateStart) }} - {{ formatDate(item.dateEnd) }}, works time - {{ formatTime(item.size) }}
-    </p>
+    <div class="list__sector" v-for="item in timersList" :key="item.id">
+      <p class="list__date" v-if="idList.includes(item.id)">{{ formatDate(item.dateStart) }}</p>
+      <p class="list__item">
+        {{ item.id }}. {{ formatDate(item.dateStart) }} - {{ formatDate(item.dateEnd) }}, works time - {{ formatTime(item.size) }}
+      </p>
+    </div>
   </div>
 </template>
 
@@ -10,7 +13,8 @@
 export default {
   name: "TimerList",
   props: {
-    timersList: Array
+    timersList: Array,
+    idList: Array
   },
 
   data() {
@@ -55,9 +59,6 @@ export default {
 }
 .list__sector {
   position: relative;
-  padding: 20px 20px 0px 20px;
-  border: 1px solid #333;
-  margin: 10px 0;
 }
 .list__date {
   color: #999;
